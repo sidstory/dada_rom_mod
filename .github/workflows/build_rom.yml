@@ -1,11 +1,11 @@
-name: Build ROM for Houji
+name: Build ROM for dada
 on:
   workflow_dispatch:
     inputs:
       VENDOR_URL:
         description: "底包下载地址"
         required: true
-        default: 'https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS1.0.45.0.UNCCNXM/miui_HOUJI_OS1.0.45.0.UNCCNXM_8597412d79_14.0.zip'
+        default: 'https://bkt-sgp-miui-ota-update-alisgp.oss-ap-southeast-1.aliyuncs.com/OS4.0.0.7.XOCCNXM/dada-ota_full-OS4.0.0.7.XOCCNXM-user-17.0-832125be27.zip'
       KSU:
         description: "是否集成 KernelSU"
         required: false
@@ -36,7 +36,6 @@ jobs:
           sudo apt-get install -y aria2 cpio python3
       - name: 构建 ROM
         run: |
-          mv "$GITHUB_WORKSPACE"/dada_files "$GITHUB_WORKSPACE"/houji_files
           sudo ln -sf "$GITHUB_WORKSPACE"/tools/zstd /usr/local/bin/zstd
           sudo KSU=${{ github.event.inputs.KSU }} bash "$GITHUB_WORKSPACE"/make.sh "${{ github.event.inputs.VENDOR_URL }}" "$GITHUB_ENV" "$GITHUB_WORKSPACE"
           ls "$GITHUB_WORKSPACE"/zip/*.zip || { echo "::error::ROM 卡刷包生成失败"; exit 1; }
