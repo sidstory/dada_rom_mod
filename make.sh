@@ -17,7 +17,7 @@ Green='\033[1;32m'  # 粗体绿色
 
 vendor_zip_name=$(basename "${VENDOR_SOURCE%%\?*}")                                          # 底包的 zip 名称, 例: dada-ota_full-OS4.0.0.7.XOCCNXM-user-17.0-832125be27.zip
 vendor_os_version=$(echo "$vendor_zip_name" | grep -oE "OS[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[A-Z]+") # 底包的 OS 版本号, 例: OS4.0.0.7.UNCCNXM
-android_version=$(echo "$vendor_zip_name" | sed -E 's/.*_([0-9]+)\.[0-9]+\.zip/\1/')          # Android 版本号, 例: 17
+android_version=$(echo "$vendor_zip_name" | sed -E 's/.*-([0-9]+)\.[0-9]+-[^-]+\.zip/\1/') # Android 版本号, 例: 17
 build_time=$(date)                                                                           # 构建时间
 
 sudo chmod -R 777 "$GITHUB_WORKSPACE"/tools
@@ -146,38 +146,38 @@ mkdir -p "$GITHUB_WORKSPACE"/vendor_boot
 cd "$GITHUB_WORKSPACE"/vendor_boot
 mv -f "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img "$GITHUB_WORKSPACE"/vendor_boot
 $magiskboot unpack -h "$GITHUB_WORKSPACE"/vendor_boot/vendor_boot.img 2>&1
-if [ -f ramdisk.cpio ]; then
-  comp=$($magiskboot decompress ramdisk.cpio 2>&1 | grep -v 'raw' | sed -n 's;.*\[\(.*\)\];\1;p')
-  if [ "$comp" ]; then
-    mv -f ramdisk.cpio ramdisk.cpio.$comp
-    $magiskboot decompress ramdisk.cpio.$comp ramdisk.cpio 2>&1
-    if [ $? != 0 ] && $comp --help 2>/dev/null; then
-      $comp -dc ramdisk.cpio.$comp >ramdisk.cpio
-    fi
-  fi
-  mkdir -p ramdisk
-  chmod 755 ramdisk
-  cd ramdisk
-  EXTRACT_UNSAFE_SYMLINKS=1 cpio -d -F ../ramdisk.cpio -i 2>&1
+# vendor_boot 头版本 v4 的 ramdisk 文件名为 vendor_ramdisk, 其余情况为 ramdisk.cpio
+rd_file=ramdisk.cpio
+[ -f vendor_ramdisk ] && rd_file=vendor_ramdisk
+if [ ! -f "$rd_file" ]; then
+  echo "::error::vendor_boot 解包失败, 未找到 ramdisk.cpio / vendor_ramdisk"
+  exit 1
 fi
+echo -e "${Yellow}- vendor ramdisk 文件: $rd_file"
+comp=$($magiskboot decompress "$rd_file" 2>&1 | grep -v 'raw' | sed -n 's;.*\[\(.*\)\];\1;p')
+if [ "$comp" ]; then
+  mv -f "$rd_file" "$rd_file.$comp"
+  $magiskboot decompress "$rd_file.$comp" "$rd_file" 2>&1
+  if [ $? != 0 ] && $comp --help 2>/dev/null; then
+    $comp -dc "$rd_file.$comp" >"$rd_file"
+  fi
+fi
+mkdir -p ramdisk
+chmod 755 ramdisk
+(cd ramdisk && EXTRACT_UNSAFE_SYMLINKS=1 cpio -d -F "../$rd_file" -i 2>&1)
+mkdir -p ramdisk/first_stage_ramdisk
 sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
 sudo chmod 644 "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
-cd "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/
-find | sed 1d | cpio -H newc -R 0:0 -o -F ../ramdisk_new.cpio
-cd ..
-if [ "$comp" ]; then
-  $magiskboot compress=$comp ramdisk_new.cpio 2>&1
-  if [ $? != 0 ] && $comp --help 2>/dev/null; then
-    $comp -9c ramdisk_new.cpio >ramdisk.cpio.$comp
-  fi
-fi
-ramdisk=$(ls ramdisk_new.cpio* 2>/dev/null | tail -n1)
-if [ "$ramdisk" ]; then
-  cp -f $ramdisk ramdisk.cpio
-  case $comp in
-  cpio) nocompflag="-n" ;;
-  esac
-  $magiskboot repack $nocompflag "$GITHUB_WORKSPACE"/vendor_boot/vendor_boot.img "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img 2>&1
+(cd ramdisk && find . | sed 1d | cpio -H newc -R 0:0 -o -F ../ramdisk_new.cpio 2>&1)
+rm -f "$rd_file"
+mv -f ramdisk_new.cpio "$rd_file"
+case $comp in
+cpio) nocompflag="-n" ;;
+esac
+$magiskboot repack $nocompflag "$GITHUB_WORKSPACE"/vendor_boot/vendor_boot.img "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img 2>&1
+if [ ! -s "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img ]; then
+  echo "::error::vendor_boot repack 失败, 未生成有效镜像"
+  exit 1
 fi
 sudo rm -rf "$GITHUB_WORKSPACE"/vendor_boot
 # 替换 vendor 的 fstab
