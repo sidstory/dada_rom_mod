@@ -1,4 +1,5 @@
-### build houji rom from other mi device
-#### fork from YukongA build_houji_rom repository
-### feature
+### build dada rom from mi official rom
+
+#### feature
 delete data encrypt
+delete ad app
