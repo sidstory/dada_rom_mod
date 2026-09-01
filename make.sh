@@ -146,9 +146,12 @@ mkdir -p "$GITHUB_WORKSPACE"/vendor_boot
 cd "$GITHUB_WORKSPACE"/vendor_boot
 mv -f "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img "$GITHUB_WORKSPACE"/vendor_boot
 $magiskboot unpack -h "$GITHUB_WORKSPACE"/vendor_boot/vendor_boot.img 2>&1
+echo -e "${Yellow}- vendor_boot 解包产物: $(ls -A)"
 # vendor_boot 头版本 v4 的 ramdisk 文件名为 vendor_ramdisk, 其余情况为 ramdisk.cpio
 rd_file=ramdisk.cpio
-if [ ! -f "$rd_file" ]; then
+if [ ! -f "$rd_file" ] && [ -f vendor_ramdisk ]; then
+  rd_file=vendor_ramdisk
+elif [ ! -f "$rd_file" ]; then
   echo "::error::vendor_boot 解包失败, 未找到 ramdisk.cpio"
   exit 1
 fi
