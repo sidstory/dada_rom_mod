@@ -8,16 +8,16 @@ VENDOR_SOURCE="$1"    # 底包下载地址或本地路径
 GITHUB_ENV="$2"       # 输出环境变量
 GITHUB_WORKSPACE="$3" # 工作目录
 
-device=houji # 设备代号
+device=dada # 设备代号
 
 Red='\033[1;31m'    # 粗体红色
 Yellow='\033[1;33m' # 粗体黄色
 Blue='\033[1;34m'   # 粗体蓝色
 Green='\033[1;32m'  # 粗体绿色
 
-vendor_zip_name=$(basename "${VENDOR_SOURCE%%\?*}")                                          # 底包的 zip 名称, 例: miui_HOUJI_OS1.0.32.0.UNCCNXM_4fd0e15877_14.0.zip
-vendor_os_version=$(echo "$vendor_zip_name" | grep -oE "OS[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[A-Z]+") # 底包的 OS 版本号, 例: OS1.0.32.0.UNCCNXM
-android_version=$(echo "$vendor_zip_name" | sed -E 's/.*_([0-9]+)\.[0-9]+\.zip/\1/')          # Android 版本号, 例: 14
+vendor_zip_name=$(basename "${VENDOR_SOURCE%%\?*}")                                          # 底包的 zip 名称, 例: dada-ota_full-OS4.0.0.7.XOCCNXM-user-17.0-832125be27.zip
+vendor_os_version=$(echo "$vendor_zip_name" | grep -oE "OS[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+\.[A-Z]+") # 底包的 OS 版本号, 例: OS4.0.0.7.UNCCNXM
+android_version=$(echo "$vendor_zip_name" | sed -E 's/.*_([0-9]+)\.[0-9]+\.zip/\1/')          # Android 版本号, 例: 17
 build_time=$(date)                                                                           # 构建时间
 
 sudo chmod -R 777 "$GITHUB_WORKSPACE"/tools
@@ -193,7 +193,7 @@ sudo mkdir -p "$GITHUB_WORKSPACE"/images/product/app/MSA
 sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/MSA.apk "$GITHUB_WORKSPACE"/images/product/app/MSA
 # 精简部分应用
 echo -e "${Red}- 精简部分应用"
-apps=("MIGalleryLockscreen" "MIUIDriveMode" "MIUIDuokanReader" "MIUIGameCenter" "MIUINewHome" "MIUIYoupin" "MIUIHuanJi" "MIUIMiDrive" "MIUIVirtualSim" "ThirdAppAssistant" "XMRemoteController" "MIUIVipAccount" "MiuiScanner" "Xinre" "SmartHome" "MiShop" "MiRadio" "MIUICompass" "MediaEditor" "BaiduIME" "iflytek.inputmethod" "MIService" "MIUIEmail" "MIUIVideo" "MIUIMusicT")
+apps=("MIUIDriveMode" "MIUIDuokanReader" "MIUIGameCenter" "MIUINewHome" "MIUIYoupin" "MIUIHuanJi" "MIUIMiDrive" "MIUIVirtualSim" "ThirdAppAssistant" "XMRemoteController" "MIUIVipAccount" "Xinre" "SmartHome" "MiShop" "MiRadio" "BaiduIME" "iflytek.inputmethod" "MIService" "MIUIEmail" "MIUIVideo" "MIUIMusicT")
 for app in "${apps[@]}"; do
   appsui=$(sudo find "$GITHUB_WORKSPACE"/images/product/data-app/ -type d -iname "*${app}*")
   if [[ -n $appsui ]]; then
@@ -241,15 +241,15 @@ End_Time 压缩super.zst
 # 生成卡刷包
 echo -e "${Red}- 生成卡刷包"
 Start_Time
-sudo $a7z a "$GITHUB_WORKSPACE"/zip/miui_${device}_${vendor_os_version}.zip "$GITHUB_WORKSPACE"/images/* >/dev/null
+sudo $a7z a "$GITHUB_WORKSPACE"/zip/hyperos_${device}_${vendor_os_version}.zip "$GITHUB_WORKSPACE"/images/* >/dev/null
 sudo rm -rf "$GITHUB_WORKSPACE"/images
 End_Time 压缩卡刷包
 # 定制 ROM 包名
 echo -e "${Red}- 定制 ROM 包名"
-md5=$(md5sum "$GITHUB_WORKSPACE"/zip/miui_${device}_${vendor_os_version}.zip)
+md5=$(md5sum "$GITHUB_WORKSPACE"/zip/hyperos_${device}_${vendor_os_version}.zip)
 echo "MD5=${md5:0:32}" >>$GITHUB_ENV
 zip_md5=${md5:0:10}
-rom_name="miui_HOUJI_${vendor_os_version}_${zip_md5}_${android_version}.0_smice.zip"
-sudo mv "$GITHUB_WORKSPACE"/zip/miui_${device}_${vendor_os_version}.zip "$GITHUB_WORKSPACE"/zip/"${rom_name}"
+rom_name="hyperos_dada_${vendor_os_version}_${zip_md5}_${android_version}.0_smice.zip"
+sudo mv "$GITHUB_WORKSPACE"/zip/hyperos_${device}_${vendor_os_version}.zip "$GITHUB_WORKSPACE"/zip/"${rom_name}"
 echo "rom_name=$rom_name" >>$GITHUB_ENV
 ### 输出卡刷包结束
