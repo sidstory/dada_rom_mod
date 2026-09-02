@@ -257,6 +257,24 @@ for partition in "${rebuild_partitions[@]}"; do
   sudo python3 "$GITHUB_WORKSPACE"/tools/fspatch.py "$GITHUB_WORKSPACE"/images/$partition "$GITHUB_WORKSPACE"/images/config/"$partition"_fs_config
   sudo python3 "$GITHUB_WORKSPACE"/tools/contextpatch.py "$GITHUB_WORKSPACE"/images/$partition "$GITHUB_WORKSPACE"/images/config/"$partition"_file_contexts
   sudo $erofs_mkfs --quiet -zlz4hc,9 -T 1230768000 --mount-point /$partition --fs-config-file "$GITHUB_WORKSPACE"/images/config/"$partition"_fs_config --file-contexts "$GITHUB_WORKSPACE"/images/config/"$partition"_file_contexts "$GITHUB_WORKSPACE"/images/$partition.img "$GITHUB_WORKSPACE"/images/$partition || { echo "::error::$partition 生成 erofs 镜像失败"; exit 1; }
+  # 回读校验: 重新解包重建后的镜像, 与源目录对比, 确认重建没有丢失文件
+  if [ "$partition" == "vendor" ]; then
+    echo -e "${Red}- 校验 vendor 重建完整性 (回读对比)"
+    mkdir -p "$GITHUB_WORKSPACE"/vendor_verify
+    (cd "$GITHUB_WORKSPACE"/vendor_verify && sudo $erofs_extract -s -i "$GITHUB_WORKSPACE"/images/$partition.img -x)
+    orig_count=$(sudo find "$GITHUB_WORKSPACE"/images/$partition | wc -l)
+    new_count=$(sudo find "$GITHUB_WORKSPACE"/vendor_verify/$partition | wc -l)
+    echo -e "${Yellow}- 文件数: 重建源 $orig_count / 回读 $new_count"
+    if sudo diff -qr "$GITHUB_WORKSPACE"/images/$partition "$GITHUB_WORKSPACE"/vendor_verify/$partition >"$GITHUB_WORKSPACE"/vendor_verify_diff.txt 2>&1; then
+      echo -e "${Green}- vendor 回读内容一致"
+    else
+      echo "::warning::vendor 回读存在差异, 详情见下方日志"
+      echo "::group::vendor 重建回读 diff (前 100 行)"
+      head -100 "$GITHUB_WORKSPACE"/vendor_verify_diff.txt
+      echo "::endgroup::"
+    fi
+    sudo rm -rf "$GITHUB_WORKSPACE"/vendor_verify "$GITHUB_WORKSPACE"/vendor_verify_diff.txt
+  fi
   sudo rm -rf "$GITHUB_WORKSPACE"/images/$partition
 done
 # 统计各分区大小
