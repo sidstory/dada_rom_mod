@@ -168,9 +168,27 @@ fi
 mkdir -p ramdisk
 chmod 755 ramdisk
 (cd ramdisk && EXTRACT_UNSAFE_SYMLINKS=1 cpio -d -F "../$rd_file" -i 2>&1)
-mkdir -p ramdisk/first_stage_ramdisk
-sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
-sudo chmod 644 "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
+# 备份底包原版 fstab 并输出 diff, 便于排查 fstab 兼容性
+mkdir -p "$GITHUB_WORKSPACE"/fstab_backup
+for f in fstab.qcom first_stage_ramdisk/fstab.qcom; do
+  if [ -f "ramdisk/$f" ]; then
+    sudo cp -f "ramdisk/$f" "$GITHUB_WORKSPACE/fstab_backup/vendor_boot_$(echo "$f" | tr '/' '_')"
+  fi
+done
+for b in "$GITHUB_WORKSPACE"/fstab_backup/vendor_boot_*.qcom; do
+  if [ -f "$b" ]; then
+    echo "::group::fstab diff: $(basename "$b") (底包原版 vs 替换版)"
+    diff -u "$b" "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom || true
+    echo "::endgroup::"
+  fi
+done
+if [ "$NO_FSTAB" == "true" ]; then
+  echo -e "${Yellow}- 已跳过 vendor_boot fstab 替换 (排查模式)"
+else
+  mkdir -p ramdisk/first_stage_ramdisk
+  sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
+  sudo chmod 644 "$GITHUB_WORKSPACE"/vendor_boot/ramdisk/first_stage_ramdisk/fstab.qcom
+fi
 (cd ramdisk && find . | sed 1d | cpio -H newc -R 0:0 -o -F ../ramdisk_new.cpio 2>&1)
 rm -f "$rd_file"
 mv -f ramdisk_new.cpio "$rd_file"
@@ -184,8 +202,18 @@ if [ ! -s "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img ]; then
 fi
 sudo rm -rf "$GITHUB_WORKSPACE"/vendor_boot
 # 替换 vendor 的 fstab
-echo -e "${Red}- 替换 vendor 的 fstab"
-sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom "$GITHUB_WORKSPACE"/images/vendor/etc/fstab.qcom
+if [ "$NO_FSTAB" == "true" ]; then
+  echo -e "${Yellow}- 已跳过 vendor fstab 替换 (排查模式)"
+else
+  echo -e "${Red}- 替换 vendor 的 fstab"
+  if [ -f "$GITHUB_WORKSPACE"/images/vendor/etc/fstab.qcom ]; then
+    sudo cp -f "$GITHUB_WORKSPACE"/images/vendor/etc/fstab.qcom "$GITHUB_WORKSPACE"/fstab_backup/vendor_etc_fstab.qcom
+    echo "::group::fstab diff: vendor_etc_fstab.qcom (底包原版 vs 替换版)"
+    diff -u "$GITHUB_WORKSPACE"/fstab_backup/vendor_etc_fstab.qcom "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom || true
+    echo "::endgroup::"
+  fi
+  sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/fstab.qcom "$GITHUB_WORKSPACE"/images/vendor/etc/fstab.qcom
+fi
 # 替换 recovery 镜像
 echo -e "${Red}- 替换 Recovery 镜像"
 sudo cp -f "$GITHUB_WORKSPACE"/"${device}"_files/recovery.img "$GITHUB_WORKSPACE"/images/firmware-update/recovery.img
@@ -244,6 +272,11 @@ End_Time 压缩super.zst
 # 生成卡刷包
 echo -e "${Red}- 生成卡刷包"
 Start_Time
+# 附带 fstab 备份便于比对
+if [ -d "$GITHUB_WORKSPACE"/fstab_backup ] && ls "$GITHUB_WORKSPACE"/fstab_backup/*.qcom >/dev/null 2>&1; then
+  sudo mkdir -p "$GITHUB_WORKSPACE"/images/firmware-update/fstab_backup
+  sudo cp -f "$GITHUB_WORKSPACE"/fstab_backup/*.qcom "$GITHUB_WORKSPACE"/images/firmware-update/fstab_backup/
+fi
 sudo $a7z a "$GITHUB_WORKSPACE"/zip/hyperos_${device}_${vendor_os_version}.zip "$GITHUB_WORKSPACE"/images/* >/dev/null
 sudo rm -rf "$GITHUB_WORKSPACE"/images
 End_Time 压缩卡刷包

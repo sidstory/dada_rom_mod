@@ -14,6 +14,14 @@ on:
         options:
           - "true"
           - "false"
+      NO_FSTAB:
+        description: "跳过 fstab 替换(排查卡屏用)"
+        required: false
+        default: "false"
+        type: choice
+        options:
+          - "false"
+          - "true"
 
 jobs:
   build:
@@ -37,7 +45,7 @@ jobs:
       - name: 构建 ROM
         run: |
           sudo ln -sf "$GITHUB_WORKSPACE"/tools/zstd /usr/local/bin/zstd
-          sudo KSU=${{ github.event.inputs.KSU }} bash "$GITHUB_WORKSPACE"/make.sh "${{ github.event.inputs.VENDOR_URL }}" "$GITHUB_ENV" "$GITHUB_WORKSPACE"
+          sudo KSU=${{ github.event.inputs.KSU }} NO_FSTAB=${{ github.event.inputs.NO_FSTAB }} bash "$GITHUB_WORKSPACE"/make.sh "${{ github.event.inputs.VENDOR_URL }}" "$GITHUB_ENV" "$GITHUB_WORKSPACE"
           ls "$GITHUB_WORKSPACE"/zip/*.zip || { echo "::error::ROM 卡刷包生成失败"; exit 1; }
       - name: 处理 ROM
         run: |
