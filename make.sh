@@ -103,8 +103,13 @@ done
 # 分解需要修改的分区
 echo -e "${Red}- 开始分解 vendor.img"
 cd "$GITHUB_WORKSPACE"/images
-sudo $erofs_extract -s -i "$GITHUB_WORKSPACE"/Extra_dir/vendor.img -x
-rm -rf "$GITHUB_WORKSPACE"/Extra_dir/vendor.img
+if [ "$STOCK_VENDOR" == "true" ]; then
+  echo -e "${Yellow}- 已跳过 vendor 解包, 直接使用底包原版 vendor.img (排查模式)"
+  sudo mv -f "$GITHUB_WORKSPACE"/Extra_dir/vendor.img "$GITHUB_WORKSPACE"/images/vendor.img
+else
+  sudo $erofs_extract -s -i "$GITHUB_WORKSPACE"/Extra_dir/vendor.img -x
+  rm -rf "$GITHUB_WORKSPACE"/Extra_dir/vendor.img
+fi
 echo -e "${Red}- 开始分解 product.img"
 sudo $erofs_extract -s -i "$GITHUB_WORKSPACE"/images/product.img -x
 rm -rf "$GITHUB_WORKSPACE"/images/product.img
@@ -202,7 +207,7 @@ if [ ! -s "$GITHUB_WORKSPACE"/images/firmware-update/vendor_boot.img ]; then
 fi
 sudo rm -rf "$GITHUB_WORKSPACE"/vendor_boot
 # 替换 vendor 的 fstab
-if [ "$NO_FSTAB" == "true" ]; then
+if [ "$NO_FSTAB" == "true" ] || [ "$STOCK_VENDOR" == "true" ]; then
   echo -e "${Yellow}- 已跳过 vendor fstab 替换 (排查模式)"
 else
   echo -e "${Red}- 替换 vendor 的 fstab"
@@ -242,11 +247,16 @@ End_Time 功能修复
 echo -e "${Red}- 开始打包super.img"
 Start_Time
 # 重新打包修改过的分区
-for partition in product vendor; do
+if [ "$STOCK_VENDOR" == "true" ]; then
+  rebuild_partitions=(product)
+else
+  rebuild_partitions=(product vendor)
+fi
+for partition in "${rebuild_partitions[@]}"; do
   echo -e "${Red}- 正在生成: $partition"
   sudo python3 "$GITHUB_WORKSPACE"/tools/fspatch.py "$GITHUB_WORKSPACE"/images/$partition "$GITHUB_WORKSPACE"/images/config/"$partition"_fs_config
   sudo python3 "$GITHUB_WORKSPACE"/tools/contextpatch.py "$GITHUB_WORKSPACE"/images/$partition "$GITHUB_WORKSPACE"/images/config/"$partition"_file_contexts
-  sudo $erofs_mkfs --quiet -zlz4hc,9 -T 1230768000 --mount-point /$partition --fs-config-file "$GITHUB_WORKSPACE"/images/config/"$partition"_fs_config --file-contexts "$GITHUB_WORKSPACE"/images/config/"$partition"_file_contexts "$GITHUB_WORKSPACE"/images/$partition.img "$GITHUB_WORKSPACE"/images/$partition
+  sudo $erofs_mkfs --quiet -zlz4hc,9 -T 1230768000 --mount-point /$partition --fs-config-file "$GITHUB_WORKSPACE"/images/config/"$partition"_fs_config --file-contexts "$GITHUB_WORKSPACE"/images/config/"$partition"_file_contexts "$GITHUB_WORKSPACE"/images/$partition.img "$GITHUB_WORKSPACE"/images/$partition || { echo "::error::$partition 生成 erofs 镜像失败"; exit 1; }
   sudo rm -rf "$GITHUB_WORKSPACE"/images/$partition
 done
 # 统计各分区大小
